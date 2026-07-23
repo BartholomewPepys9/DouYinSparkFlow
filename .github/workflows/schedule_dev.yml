@@ -1,4 +1,5 @@
 # 此工作流用于运行dev（测试）分支的定时任务，如果不清楚请使用 DouYin Spark Flow Schedule Run
+# Keep this workflow on the default branch so GitHub registers its schedule.
 
 name: 【dev（测试）分支】DouYin Spark Flow Schedule Run
 on:
