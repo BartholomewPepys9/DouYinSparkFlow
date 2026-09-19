@@ -28,7 +28,7 @@ jobs:
     - name: Export Github Environment Variables and Secrets to JSON
       env:
         VARS_JSON: ${{ toJson(vars) }}
-        SECRETS_JSON: ${{ toJson(secrets) }}
+        COOKIES_NICETLD: ${{ secrets.COOKIES_NICETLD }}
       run: python utils/export_github_env.py
     - name: Run DouYin Spark Flow
       run: python main.py
