@@ -13,9 +13,18 @@ logger = setup_logger(level=config.get("logLevel", "Info"))
 matchMode = config.get("matchMode", "nickname")
 userIDDict = {}
 
-CONVERSATION_ITEM_SELECTOR = ".conversationConversationItemwrapper"
-CONVERSATION_TITLE_SELECTOR = ".conversationConversationItemtitle"
-CONVERSATION_LIST_SELECTOR = ".conversationConversationListwrapper"
+CONVERSATION_ITEM_SELECTOR = (
+    ".conversationConversationItemwrapper, "
+    "[class*='conversationConversationItemwrapper']"
+)
+CONVERSATION_TITLE_SELECTOR = (
+    ".conversationConversationItemtitle, "
+    "[class*='conversationConversationItemtitle']"
+)
+CONVERSATION_LIST_SELECTOR = (
+    ".conversationConversationListwrapper, "
+    "[class*='conversationConversationListwrapper']"
+)
 CHAT_EDITOR_SELECTOR = ".messageEditorimChatEditorContainer"
 
 
@@ -131,7 +140,7 @@ def scroll_and_select_user(page, username, targets):
 
                 if targetSymbol:
                     element.click()
-                    
+                    logger.info(f"账号 {username} 已选中目标好友 {targetSymbol}")
                     yield targetSymbol
 
                     # [修改] 标记已找到，如果全找到了直接退出
@@ -182,7 +191,7 @@ def scroll_and_select_user(page, username, targets):
             # 4. 滚动容器
             scrollable_element = page.locator(
                 scrollable_friends_selector
-            ).element_handle()
+            ).first.element_handle(timeout=30000)
 
             if scrollable_element:
                 # [修复] 记录滚动前的 scrollTop，用于检测是否真的滚动了
@@ -233,21 +242,35 @@ def do_user_task(browser, username, cookies, targets):
     # 注入 Cookie
     context.add_cookies(cookies)
 
-    # 打开抖音网页聊天页面
+    targets = [norm(target) for target in targets]
+
+    # 打开抖音网页聊天页面。抖音页面会持续加载资源，等待 load 会导致已可用
+    # 的聊天页被误判为超时；只等待 DOM 就绪，再明确等待聊天列表。
     retry_operation(
         "打开抖音网页聊天页面",
         page.goto,
         retries=config["taskRetryTimes"],
         delay=5,
         url="https://www.douyin.com/chat",
+        wait_until="domcontentloaded",
     )
 
-    time.sleep(5)  # 等待5秒让过可能存在的弹窗
+    try:
+        page.locator(CONVERSATION_LIST_SELECTOR).first.wait_for(
+            state="visible", timeout=30000
+        )
+    except Exception as exc:
+        logger.error(
+            f"账号 {username} 未加载出抖音聊天列表，可能 Cookie 已失效或页面结构已变更；"
+            f"当前页面：{page.url}"
+        )
+        raise RuntimeError("抖音聊天列表未加载，未发送任何消息") from exc
 
-    logger.debug(f"账号 {username} 开始发送消息")
+    logger.info(f"账号 {username} 开始查找并发送消息")
+    sent_targets = set()
     # 滚动并选择用户
-    for username in scroll_and_select_user(page, username, targets):
-        logger.debug(f"账号 {username} 已选中好友 {username} 发送消息")
+    for target in scroll_and_select_user(page, username, targets):
+        logger.info(f"账号 {username} 准备向 {target} 发送消息")
         # 等待聊天输入框元素加载完成，使用更稳定的属性选择器
         chat_input_selector = CHAT_EDITOR_SELECTOR
         page.wait_for_selector(chat_input_selector, timeout=config["browserTimeout"])
@@ -261,13 +284,18 @@ def do_user_task(browser, username, cookies, targets):
             if line != message.split("\\n")[-1]:
                 chat_input.press("Shift+Enter")  # 模拟 Shift+Enter 插入换行
 
-        logger.debug(f"账号 {username} 准备发送消息给好友 {username}：\n\t{message}")
-        logger.debug(f"账号 {username} 给好友 {username} 发送消息完成")
         # 模拟按下回车键发送消息
         chat_input.press("Enter")
+        sent_targets.add(target)
+        logger.info(f"账号 {username} 已向 {target} 发送消息")
         time.sleep(2)  # 发送完等待一会儿
 
     context.close()  # 任务完成后关闭上下文
+    missing_targets = set(targets) - sent_targets
+    if missing_targets:
+        raise RuntimeError(
+            f"以下目标好友未找到或未发送，任务已停止：{sorted(missing_targets)}"
+        )
 
 
 def runTasks():
@@ -297,3 +325,4 @@ def runTasks():
         browser.close()
 
         playwright.stop()
+
