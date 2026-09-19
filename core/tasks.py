@@ -17,10 +17,7 @@ CONVERSATION_ITEM_SELECTOR = (
     ".conversationConversationItemwrapper, "
     "[class*='conversationConversationItemwrapper']"
 )
-CONVERSATION_TITLE_SELECTOR = (
-    ".conversationConversationItemtitle, "
-    "[class*='conversationConversationItemtitle']"
-)
+CONVERSATION_TITLE_SELECTOR = ".conversationConversationItemtitle"
 CONVERSATION_LIST_SELECTOR = (
     ".conversationConversationListwrapper, "
     "[class*='conversationConversationListwrapper']"
