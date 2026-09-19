@@ -28,6 +28,20 @@ CONVERSATION_LIST_SELECTOR = (
 CHAT_EDITOR_SELECTOR = ".messageEditorimChatEditorContainer"
 
 
+def log_chat_page_diagnostics(page):
+    """记录不含聊天内容的页面状态，便于判断登录状态或页面结构变化。"""
+    login_selector = "input[type='password'], input[placeholder*='手机号'], [class*='login']"
+    classes = page.locator("[class]").evaluate_all(
+        """elements => [...new Set(elements.flatMap(element =>
+            [...element.classList].filter(name => /conversation|message|login/i.test(name))
+        ))].slice(0, 80)"""
+    )
+    logger.error(
+        f"聊天页诊断：标题={page.title()!r}，登录相关元素数="
+        f"{page.locator(login_selector).count()}，相关样式类={classes}"
+    )
+
+
 def handle_response(response: Response):
     """
     只监听你要的那个接口响应
@@ -260,6 +274,7 @@ def do_user_task(browser, username, cookies, targets):
             state="visible", timeout=30000
         )
     except Exception as exc:
+        log_chat_page_diagnostics(page)
         logger.error(
             f"账号 {username} 未加载出抖音聊天列表，可能 Cookie 已失效或页面结构已变更；"
             f"当前页面：{page.url}"
