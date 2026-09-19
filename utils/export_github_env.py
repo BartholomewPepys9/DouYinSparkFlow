@@ -56,6 +56,12 @@ def main() -> None:
     if not isinstance(secrets_map, dict):
         fail("SECRETS_JSON must be a JSON object")
 
+    # Keep the workflow from serializing all repository secrets into a single
+    # JSON value. Only the cookie required by this task is passed explicitly.
+    cookie_value = os.getenv("COOKIES_NICETLD")
+    if cookie_value:
+        secrets_map["COOKIES_NICETLD"] = cookie_value
+
     dotenv_map = {}
     vars_keys = list(vars_map.keys())
     secrets_keys = list(secrets_map.keys())
